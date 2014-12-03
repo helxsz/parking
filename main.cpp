@@ -19,10 +19,11 @@
 #include <iostream>
 
 // OpenCV Includes
-#include <object_tracker.h>
-#include <detector.h>
+#include <tracking/object_tracker.h>
+#include <detector/detector.h>
 
-
+#include <Eigen/Eigen>
+using namespace Eigen;
 /*
 #include "package_bgs/FrameDifferenceBGS.h"
 #include "package_bgs/StaticFrameDifferenceBGS.h"
@@ -86,6 +87,13 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
+
+    Eigen::Vector2d v1, v2;    //Eigen中的变量
+        v1 << 5, 6;  //默认的向量为列向量
+        cout  << "v1 = " << endl << v1 << endl;
+        v2 << 4, 5 ;
+        Matrix2d result = v1*v2.transpose();
+        cout << "result: " << endl << result << endl;
 
     ParkingApp w;
     w.show();

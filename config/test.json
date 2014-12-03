@@ -1,0 +1,15 @@
+{
+   "appDesc": {
+      "description": "SomeDescription",
+      "message": "SomeMessage"
+   },
+   "appName": {
+      "description": "Home",
+      "message": "Welcome",
+      "imp":["awesome","best","good"]
+   },
+   "testing":{
+       "video":"/home/helxsz/Videos/",
+       "image":""
+   }
+}

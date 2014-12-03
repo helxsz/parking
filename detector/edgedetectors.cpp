@@ -55,7 +55,7 @@ using namespace std;
         cv::filter2D(src_f, dest, CV_32F, kernel);
         //cv::imshow("Process window", dest);
 
-       cv::circle(  frame, Point(10,10), 15,  Scalar(0,100,0), 2, 8, 0  );
+        //cv::circle(  frame, Point(10,10), 15,  Scalar(0,100,0), 2, 8, 0  );
 
         // http://opencvexamples.blogspot.com/2013/10/void-canny-inputarray-image-outputarray.html#.VGTX_t_mgUQ
         /*
@@ -85,10 +85,6 @@ using namespace std;
         // http://stackoverflow.com/questions/12335663/getting-enum-names-e-g-cv-32fc1-of-opencv-image-types
         //QImage q = cvMatToQImage(dest);
         ////
-
-
-
-
     }
 
 

@@ -21,7 +21,6 @@
 #include <QTextStream>
 #include <QStringList>
 
-#include <detector.h>
 #include <stdio.h>
 
 
@@ -36,14 +35,9 @@ class Player : public QThread
      QWaitCondition condition;
      Mat frame;
      int frameRate;
-     //VideoCapture capture;
      VideoCapture *capture;
      Mat RGBframe;
      QImage img;
-
-
-     Detector detector;
-
 
 
   signals:
@@ -95,4 +89,4 @@ class Player : public QThread
     double getNumberOfFrames();
 
 };
-#endif // VIDEOPLAYER_H
+#endif // PLAYER_H

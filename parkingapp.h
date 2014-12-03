@@ -15,13 +15,20 @@
 #include <QTime>
 #include <QTimer>
 #include <QProcess>
+#include <QStringList>
+#include <QStringListModel>
+#include <QDir>
 
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+#include "opencv2/contrib/contrib.hpp"
+#include "opencv/ml.h"
+#include "opencv2/objdetect/objdetect.hpp"
 
 #include <player.h>
-#include <edgedetectors.h>
-#include <hogdetector.h>
+#include <detector/edgedetectors.h>
+#include <detector/hogdetector.h>
+#include <webdialog.h>
 using namespace std;
 
 namespace Ui {
@@ -45,11 +52,11 @@ private slots:
     void detectCar(Mat frame, int index);
     void testData2(int t, int k);
 
-    void start();
+    void on_training_value_changed(int);
+
+    //////////////////////////////////
 
     void onProcessReadyRead();
-
-    void on_checkBox_clicked();
 
     void on_loadBtn_clicked();
 
@@ -60,8 +67,6 @@ private slots:
     void on_saveCalibrateBtn_clicked();
 
     void on_monitorBtn_clicked();
-
-    void on_loadParkDataBtn_clicked();
 
     void on_saveVideoBtn_clicked();
 
@@ -86,6 +91,18 @@ private slots:
     //drag
     void onfireDragSignal();
 
+    void on_training_btn_clicked();
+
+    void on_videoList_doubleClicked(const QModelIndex &index);
+
+    void on_personDetectBtn_clicked();
+
+    void on_vehicleDetectBtn_clicked();
+
+public slots:
+
+
+
 private:
     Ui::ParkingApp *ui;
     Player* myPlayer;
@@ -96,6 +113,9 @@ private:
 
     QString filename;
     VideoWriter outputVideo;
+
+    //
+    QStringListModel *videoListModel;
 
     /////////////////
     QPixmap image;
@@ -114,6 +134,12 @@ private:
     // detectors
     edgeDetectors *edgeDetector;
     HogDetector *hogDetector;
+
+    // additional UI
+    WebDialog * webdialog;
+
+    void startVideo(QString temp);
+    void readConfig();
 
 signals:
     // drag

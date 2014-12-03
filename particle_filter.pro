@@ -13,32 +13,46 @@ TEMPLATE = app
 QT += network
 
 SOURCES += main.cpp\
-    object_tracker.cpp \
-    cv_onlinemil.cpp \
-    cv_onlineboosting.cpp \
+    tracking/object_tracker.cpp \
+    tracking/cv_onlinemil.cpp \
+    tracking/cv_onlineboosting.cpp \
     Player.cpp \
-    detector.cpp \
+    detector/detector.cpp \
     parkingapp.cpp \
-    edgedetectors.cpp \
-    hogdetector.cpp
+    Settings.cpp \
+    detector/edgedetectors.cpp \
+    detector/hogdetector.cpp \
+    utility/Camera.cpp \
+    utility/QtOpenCV.cpp \
+    utility/UDirectory.cpp \
+    utility/UFile.cpp \
+    webdialog.cpp
 
 HEADERS  += \
-    object_tracker.h \
-    cv_onlinemil.h \
-    cv_onlineboosting.h \
+    tracking/object_tracker.h \
+    tracking/cv_onlinemil.h \
+    tracking/cv_onlineboosting.h \
     player.h \
-    detector.h \
+    Settings.h \
+    detector/detector.h \
     parkingapp.h \
-    edgedetectors.h \
-    hogdetector.h
+    detector/edgedetectors.h \
+    detector/hogdetector.h \
+    utility/QtOpenCV.cpp \
+    utility/Camera.h \
+    utility/UDirectory.h \
+    utility/UFile.h \
+    webdialog.h\
 
 FORMS    += \
-    parkingapp.ui
+    parkingapp.ui \
+    webdialog.ui
 
-#   /usr/local/include/opencv \
+#   /opt/opencv3/include/opencv \
 
-INCLUDEPATH += /opt/opencv3/include/opencv \
+INCLUDEPATH += /usr/local/include/opencv \
                /usr/local/include \
+               /usr/local/include/eigen3 \
                /usr/include/gsl \
                /opt/bgslibrary3 \
                /opt/pbd/include
@@ -66,6 +80,22 @@ LIBS += -L/usr/local/lib \
         -lopencv_imgproc \
         -lopencv_video \
         -lopencv_objdetect \
+        -lopencv_ml \
+        -lopencv_calib3d \
+        -lopencv_features2d \
+        -lopencv_flann \
+        -lopencv_videostab \
+        -lopencv_nonfree \
+        -lopencv_legacy \
+#        -lopencv_ml \
+#        -lopencv_objdetect \
+        -lopencv_photo \
+        -lopencv_stitching \
+        -lopencv_superres \
+        -lopencv_ts \
+        -lopencv_gpu \
+        -lopencv_contrib \
+        -lmatio \
         -lboost_filesystem \
         -lboost_context \
         -lboost_date_time \
@@ -84,4 +114,6 @@ OTHER_FILES += \
     config/FrameDifferenceBGS.xml \
     config/VideoCapture.xml \
     config/PreProcessor.xml \
-    config/FrameProcessor.xml
+    config/FrameProcessor.xml \
+    config/test.json \
+    model/car.xml

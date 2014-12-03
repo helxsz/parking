@@ -3,14 +3,123 @@
 #include <QPainter>
 #include <QtWidgets>
 #include <sstream>
-#include <QtWebKitWidgets>
-#include <object_tracker.h>
 #include <QDebug>
+#include <time.h>
+#include <matio.h>
+
+#include <tracking/object_tracker.h>
+
+
+// http://feelmare.blogspot.co.uk/2014_11_23_archive.html
+// http://feelmare.blogspot.co.uk/search?updated-max=2014-11-03T03:33:00-08:00&max-results=2
 
 //#include "boost/date_time/posix_time/posix_time.hpp"
 //#include "boost/thread.hpp"
 // using namespace boost::posix_time;
 // https://aaka.sh/patel/2013/06/28/live-video-webcam-recording-with-opencv/
+
+void ParkingApp::readConfig()
+{
+   QString val;
+   QFile file;
+   file.setFileName("/home/helxsz/Desktop/test.json");
+   file.open(QIODevice::ReadOnly | QIODevice::Text);
+   val = file.readAll();
+   file.close();
+   qWarning() << val;
+   QJsonDocument d = QJsonDocument::fromJson(val.toUtf8());
+   QJsonObject sett2 = d.object();
+   QJsonValue value = sett2.value(QString("appName"));
+   qWarning() << value;
+   QJsonObject item = value.toObject();
+   qWarning() << "QJsonObject of description: " << item;
+
+   /* incase of string value get value and convert into string*/
+   qWarning() << "QJsonObject[appName] of description: " << item["description"];
+   QJsonValue subobj = item["description"];
+   qWarning() << subobj.toString();
+
+   /* incase of array get array and convert into string*/
+   qWarning() << "QJsonObject[appName] of value: " << item["imp"];
+   QJsonArray test = item["imp"].toArray();
+   qWarning() << test[1].toString();
+
+   QJsonValue testing = sett2.value(QString("testing"));
+   qWarning()<<"..................................." << testing;
+   item = testing.toObject();
+   QString testing_video_path = item["video"].toString();
+   qWarning()<<"..................................." << testing_video_path;
+   /////////////////////////////////////////////
+
+   // video testing lists
+   // http://www.bogotobogo.com/Qt/Qt5_QListView_QStringListModel_ModelView_MVC.php
+   videoListModel =  new QStringListModel(this);
+   QStringList list;
+
+   QString path = "/home/helxsz/Videos/"; // QDir::currentPath() + "/" + QString path = QDir::currentPath() + "/"+ QString::fromNumber(year) + "/" + QString::fromNumber(month) + "/" + QString::fromNumber(day);
+   QDir dir(testing_video_path);
+   QStringList files = dir.entryList();
+   foreach(QFileInfo finfo, files) {
+       qDebug() << path + finfo.fileName() << " ,  " << finfo.absoluteFilePath() <<endl;
+      // QDir(finfo.absoluteFilePath())
+       if (!finfo.isDir()) {
+           list << ( path + finfo.fileName() );
+       }
+   }
+
+   videoListModel->setStringList(list);
+   ui->videoList->setModel(videoListModel);
+   ui->videoList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+   qDebug() << QApplication::applicationDirPath();
+
+   const double a[5] = {43.5, 5432.434, 3.32, 0.0001, 88834.0};
+
+   mat_t *mat;
+   matvar_t *matvar;
+   int dims[2] = {1,5};
+
+   mat = Mat_Open("simple.mat",MAT_ACC_RDWR);
+
+   if(mat)
+     {
+       cout<<"   has mat "<<endl;
+       //matvar = Mat_VarCreate("vec1",MAT_C_DOUBLE,MAT_T_DOUBLE,2,dims,a,0);
+       //Mat_VarWrite( mat, matvar, 0);
+
+       //Mat_VarFree(matvar);
+       //Mat_Close(mat);
+     }else
+       cout << "has no mat" <<endl;
+
+   /////////////////////////////////
+
+   /*  LatentSvmDetector detector =
+   Mat im = imread("/home/helxsz/Desktop/cat.jpg");
+   cv::LatentSvmDetector detector("/home/helxsz/Desktop/car.xml");
+   if( detector.empty() ){
+            cout << "Models cann't be loaded" << endl;
+        exit(-1);
+   }
+
+   vector<LatentSvmDetector::ObjectDetection> detections;
+   detections = detector.detect(im);
+   for( size_t i = 0; i < detections.size(); i++ )
+   {
+       const LatentSvmDetector::ObjectDetection& od = detections[i];
+       rectangle( im, od.rect, 0xfffeee, 3 );
+       //putText( im, 0xfffeee, Point(od.rect.x+4,od.rect.y+13), FONT_HERSHEY_SIMPLEX, 0.55, 0xfffeee, 2 );
+   }
+   */
+
+   //http://www.bogotobogo.com/Qt/Qt5_QComboBox.php
+   //ui->edge_algorithms_list->setModel();
+   ui->edge_algorithms_list->addItem("Canny");
+   ui->edge_algorithms_list->addItem("Sobel");
+   ui->edge_algorithms_list->addItem("Laplacian");
+
+
+}
 
 ParkingApp::ParkingApp(QWidget *parent) :
     QMainWindow(parent),
@@ -20,7 +129,6 @@ ParkingApp::ParkingApp(QWidget *parent) :
     edgeDetector = new edgeDetectors();
     hogDetector = new HogDetector();
     //structuredEdgeDetector = new StructuredEdgeDetection();
-
     //QObject::connect(myPlayer, SIGNAL(processedImage(QImage,int)),this, SLOT(updatePlayerUI(QImage,int)));
 
     qRegisterMetaType< Mat >("Mat");
@@ -39,33 +147,31 @@ ParkingApp::ParkingApp(QWidget *parent) :
 
     finishTime = QDateTime::currentDateTime();
 
-    //start();
 
-     ui->webView->load(QUrl("http://localhost:8080/camera2.html"));
-     ui->webView->show();
-
-
-    //
+     //  detection methods on different camera views
      ui->camera->setStyleSheet("border: 1px dotted grey;background:white");
      ui->camera2->setStyleSheet("border: 1px solid grey;background:white");
      ui->camera3->setStyleSheet("border: 1px solid grey;background:white");
      ui->camera4->setStyleSheet("border: 1px solid grey;background:white");
 
+     // statistic view
+/*
+     QStandardItemModel *model = new QStandardItemModel(2,3,this); //2 Rows and 3 Columns
+     model->setHorizontalHeaderItem(0, new QStandardItem(QString("Success")));
+     model->setHorizontalHeaderItem(1, new QStandardItem(QString("False Detection")));
+     model->setHorizontalHeaderItem(2, new QStandardItem(QString("Column3 Header")));
+     ui->statisticView->setModel(model);
+*/
 
+     // drag
      setAcceptDrops(true);
      connect(this, SIGNAL(fireDragSignal()), this, SLOT(onfireDragSignal()));
+     // training signal
+     connect(hogDetector, SIGNAL(valueChanged(int)),this, SLOT(on_training_value_changed(int)));
 
 
- /*
-    QVBoxLayout *vlay = new QVBoxLayout(this);
-    QWidget * wdg = new QWidget(this);
-    QPushButton *btn1 = new QPushButton("btn1");
-    vlay->addWidget(btn1);
-    wdg->setLayout(vlay);
-    */
-   //RenderArea *renderArea = new RenderArea;
-   //setCentralWidget(renderArea);
-    // first problem to solve
+     readConfig();
+
 
 }
 
@@ -73,489 +179,6 @@ ParkingApp::~ParkingApp()
 {
     delete ui;
 }
-
-/**********************************
- *
- */
-
-void ParkingApp::on_checkBox_clicked()
-{
-
-}
-
-
-inline QImage  cvMatToQImage( const cv::Mat &inMat )
-{
-   switch ( inMat.type() )
-   {
-      // 8-bit, 4 channel
-      case CV_8UC4:
-      {
-         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_RGB32 );
-
-         return image;
-      }
-
-      // 8-bit, 3 channel
-      case CV_8UC3:
-      {
-         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_RGB888 );
-
-         return image.rgbSwapped();
-      }
-
-      // 8-bit, 1 channel
-      case CV_8UC1:
-      {
-         static QVector<QRgb>  sColorTable;
-
-         // only create our color table once
-         if ( sColorTable.isEmpty() )
-         {
-            for ( int i = 0; i < 256; ++i )
-               sColorTable.push_back( qRgb( i, i, i ) );
-         }
-
-         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_Indexed8 );
-
-         image.setColorTable( sColorTable );
-
-         return image;
-      }
-
-      default:{
-         qWarning() << "ASM::cvMatToQImage() - cv::Mat image type not handled in switch:" << inMat.type()<< "    "<<inMat.channels();
-
-         QImage image((const unsigned char*)(inMat.data),inMat.cols,inMat.rows,QImage::Format_Indexed8);
-         return image;
-
-         break;
-      }
-   }
-
-   return QImage();
-}
-
-// http://asmaloney.com/2013/11/code/converting-between-cvmat-and-qimage-or-qpixmap/
-// http://asmaloney.com/2012/06/code/extending-selections-in-qgraphicsview/
-inline cv::Mat QImageToCvMat( const QImage &inImage, bool inCloneImageData = true )
-{
-   switch ( inImage.format() )
-   {
-      // 8-bit, 4 channel
-      case QImage::Format_RGB32:
-      {
-         cv::Mat  mat( inImage.height(), inImage.width(), CV_8UC4, const_cast<uchar*>(inImage.bits()), inImage.bytesPerLine() );
-
-         return (inCloneImageData ? mat.clone() : mat);
-      }
-
-      // 8-bit, 3 channel
-      case QImage::Format_RGB888:
-      {
-         //if ( !inCloneImageData ) qWarning() << "ASM::QImageToCvMat() - Conversion requires cloning since we use a temporary QImage";
-
-         QImage   swapped = inImage.rgbSwapped();
-
-         return cv::Mat( swapped.height(), swapped.width(), CV_8UC3, const_cast<uchar*>(swapped.bits()), swapped.bytesPerLine() ).clone();
-      }
-
-      // 8-bit, 1 channel
-      case QImage::Format_Indexed8:
-      {
-         cv::Mat  mat( inImage.height(), inImage.width(), CV_8UC1, const_cast<uchar*>(inImage.bits()), inImage.bytesPerLine() );
-
-         return (inCloneImageData ? mat.clone() : mat);
-      }
-
-      default:
-       qWarning() << "ASM::QImageToCvMat() - QImage format not handled in switch:" << inImage.format();
-         break;
-   }
-
-   return cv::Mat();
-}
-
-
-inline cv::Mat mkKernel(int ks, double sig, double th, double lm, double ps)
-{
-    int hks = (ks-1)/2;
-    double theta = th*CV_PI/180;
-    double psi = ps*CV_PI/180;
-    double del = 2.0/(ks-1);
-    double lmbd = lm;
-    double sigma = sig/ks;
-    double x_theta;
-    double y_theta;
-    cv::Mat kernel(ks,ks, CV_32F);
-    for (int y=-hks; y<=hks; y++)
-    {
-        for (int x=-hks; x<=hks; x++)
-        {
-            x_theta = x*del*cos(theta)+y*del*sin(theta);
-            y_theta = -x*del*sin(theta)+y*del*cos(theta);
-            kernel.at<float>(hks+y,hks+x) = (float)exp(-0.5*(pow(x_theta,2)+pow(y_theta,2))/pow(sigma,2))* cos(2*CV_PI*x_theta/lmbd + psi);
-        }
-    }
-    return kernel;
-}
-
-
-void ParkingApp::updatePlayerUI(QImage img,int index){
-
-}
-
-
-
-
-void ParkingApp::detectCar(Mat frame, int index){
-
-    //  garbor filter
-    Mat ori, gray;
-    frame.copyTo(ori);
-    //cv::cvtColor(frame, gray, CV_BGR2GRAY);
-
-    edgeDetector->detectCar(frame, index);
-    hogDetector->detectCar(frame,index);
-    //// simulation
-
-    vector<Point> contours;
-    contours.push_back(Point(310,181));
-    contours.push_back(Point(294,231));  //
-    contours.push_back(Point(259,165));  //
-    contours.push_back(Point(222,211));
-    contours.push_back(Point(203,166));
-    contours.push_back(Point(154,202));
-    contours.push_back(Point(148,154));
-    contours.push_back(Point(101,185));
-
-    contours.push_back(Point(325 ,130));
-    contours.push_back(Point(290 ,128));
-    contours.push_back(Point(253 ,130)); // 10
-    contours.push_back(Point(223 ,122));
-    contours.push_back(Point(187 ,120));
-
-    for (int i = 0; i< contours.size();i++){
-        cv::circle(  frame, contours[i], 15,  Scalar(0,0,255), 2, 8, 0  );
-    }
-
-    cv::circle(  frame, contours[1], 15,  Scalar(0,100,0), 2, 8, 0  );
-
-   if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~001_baofeng.mp4") ==0 ){
-      // 1700
-       if(index > 1700) cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
-   }
-   else if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~002_baofeng.mp4") ==0 ){
-       cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
-       if(index > 827) cv::circle(  frame, contours[2], 15,  Scalar(0,100,0), 2, 8, 0  );
-   }else if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~003_baofeng.mp4") ==0 ){
-       cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
-       cv::circle(  frame, contours[2], 15,  Scalar(0,100,0), 2, 8, 0  );
-       if(index > 211) cv::circle(  frame, contours[0], 15,  Scalar(0,100,0), 2, 8, 0  );
-   }
-
-
-   QImage img = cvMatToQImage(ori);
-   ui->camera->setAlignment(Qt::AlignCenter);
-   ui->camera->setPixmap(QPixmap::fromImage(img).scaled(ui->camera->size(),
-   Qt::KeepAspectRatio, Qt::FastTransformation));
-   //////////////////////////////////////////////////////////
-
-   QImage img2 = cvMatToQImage(frame);
-   ui->camera2->setAlignment(Qt::AlignCenter);
-   ui->camera2->setPixmap(QPixmap::fromImage(img2).scaled(ui->camera2->size(),
-   Qt::KeepAspectRatio, Qt::FastTransformation));
-
-/*
-
-   // Prediction part of [P. Dollar and C. L. Zitnick. Structured Forests for Fast Edge Detection, 2013].
-   Mat fastImg;
-   structuredEdgeDetector.detect(ori,fastImg);
-   imshow(fastImg);
-*/
-
-   if(recording){
-       if(recording_type ==0){
-           recording_index ++;
-           char integer_string[8];
-           sprintf(integer_string, "%d", recording_index);
-           char path[64] = "/home/helxsz/Desktop/test/";
-           //strcat(path, recording_folder);
-           strcat(path, "test2");
-           strcat(path,"/");
-           strcat(path, integer_string);
-           strcat(path , ".jpg");
-           cout << path << "    "<<recording_type <<endl;
-           imwrite(path,frame);
-       }else if(recording_type == 1){
-
-           if(outputVideo.isOpened())
-           {
-               cout<< "recording  opening and writing...  "<<recording_type<<endl;
-               imshow("recorindg ",frame);
-               outputVideo.write(frame);
-           }else{
-               cout<<"recording but can not record"<<endl;
-           }
-
-       }
-   }
-}
-
-void ParkingApp::testData2(int t, int k){
-
-    //cout << "test data  "<< t << "   "<< k << "     "<< float( t)/ float(k)  *100  <<endl;
-    //ui->frameLabel->setText( QString("%l / %l").arg( QString::number(t) ).arg( QString::number(k) )  );
-    ui->frameCurrentLabel->setText( QString::number(t) ) ;
-    ui->frameTotalLabel->setText( QString::number(k) ) ;
-
-    ui->progressBar->setValue( float( t)/ float(k)  *100   );
-}
-
-
-
-/***********************************************************
- *
- *
-**********************************************************/
-
-void ParkingApp::start(){
-
-    char *name = ui->ipField->toPlainText().toLocal8Bit().data();
-    cout << "name"<< name<< endl;
-    if (!myPlayer->loadVideo(name))
-    {
-        QMessageBox msgBox;
-        msgBox.setText("The selected IP could not be opened!");
-        msgBox.exec();
-    }
-    else{
-        myPlayer->Play();
-        ui->openBtn->setText(tr("Stop"));
-    }
-}
-
-
-void ParkingApp::on_loadBtn_clicked()
-{
-    filename = QFileDialog::getOpenFileName(this,tr("Open Video"), ".",tr("Video Files (*.avi *.mpg *.mp4)"));
-    cout<<"click the button" << "      "<<filename.toLatin1().data() <<  endl;
-    if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~001_baofeng.mp4") ==0 )
-        cout << "fuck  you "<<endl;
-    if (!filename.isEmpty()){
-       if (!myPlayer->loadVideo(filename.toLatin1().data()))
-       {
-           QMessageBox msgBox;
-           msgBox.setText("The selected video could not be opened!");
-           msgBox.exec();
-       }else{
-           myPlayer->Play();
-           ui->openBtn->setText(tr("Stop"));
-       }
-   }
-}
-
-void ParkingApp::on_openBtn_clicked()
-{
-    cout<<ui->ipField->toPlainText().toLocal8Bit().data()  <<endl;
-    char *name = ui->ipField->toPlainText().toLocal8Bit().data();
-    if (myPlayer->isStopped())
-    {
-        if (!myPlayer->loadVideo(name))
-        {
-            QMessageBox msgBox;
-            msgBox.setText("The selected IP could not be opened!");
-            msgBox.exec();
-        }
-        else{
-            myPlayer->Play();
-            ui->openBtn->setText(tr("Stop"));
-        }
-    }else
-    {
-        myPlayer->Stop();
-        ui->openBtn->setText(tr("Play"));
-    }
-}
-
-/********************************
- *
- *   calibration on the parking spaces
- *
-********************************/
-inline void on_mouse( int event, int x, int y, int d, void *ptr )
-{
-     Point pos = Point(x,y);
-     Scalar occupied = Scalar(0,0,255);
-     Scalar empty = Scalar(0,100,0);
-
-     Mat* img = (Mat*) ptr;
-     printf("%d %d: %d, %d, %d\n",
-             x, y,
-             (int)(*img).at<Vec3b>(y, x)[0],
-             (int)(*img).at<Vec3b>(y, x)[1],
-             (int)(*img).at<Vec3b>(y, x)[2]);
-
-     if  ( event == EVENT_LBUTTONDOWN )
-     {
-          //cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-          cv::circle(  *img, pos , 15,  occupied, 2, 8, 0  );
-     }
-     else if  ( event == EVENT_RBUTTONDOWN )
-     {
-          //cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-          cv::circle(  *img, pos, 15,  empty, 2, 8, 0  );
-     }
-     else if  ( event == EVENT_MBUTTONDOWN )
-     {
-          //cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-     }
-     else if ( event == EVENT_MOUSEMOVE )
-     {
-          //cout << "Mouse move over the window - position (" << x << ", " << y << ")" << endl;
-     }
-}
-
-inline void calibrateParking(String str){
-
-    Mat img = imread(str);
-    if ( img.empty() ){
-       cout << "Error loading the image" << endl;
-    }else{
-        namedWindow( "calibration", WINDOW_AUTOSIZE );
-        setMouseCallback("calibration",on_mouse, &img );
-        imshow("calibration",img);
-    }
-}
-
-void ParkingApp::on_calibrateBtn_toggled(bool checked)
-{
-    if(checked){
-        calibrateParking("/home/helxsz/Desktop/test/test2/1.jpg");
-    }else{
-        destroyWindow("calibration");
-    }
-
-    /*
-    if (!myPlayer->isStopped()){
-        if(checked){
-             myPlayer->openCalibrate();
-        }else{
-
-             myPlayer->closeCalibrate();
-        }
-    }else{
-        QMessageBox msgBox;
-        msgBox.setText("The video is not playing, try to open a video");
-        msgBox.exec();
-    }
-    */
-
-}
-
-void ParkingApp::on_saveCalibrateBtn_clicked()
-{
-    //myPlayer->saveCalibrate();
-    QFile file("/home/helxsz/reference_rect.csv");
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
-    QTextStream out(&file);
-    /*
-    for(int i=0;i<referenceRect.size();i++){
-        rect = referenceRect[i];
-        out << rect.x <<','<<rect.y<<','<<rect.width<<','<<rect.height<<endl;
-    }
-    */
-    out << 1 <<','<< 1 <<','<< 10 <<','<< 10 <<endl;
-    // optional, as QFile destructor will already do it:
-    file.close();
-
-}
-
-
-void ParkingApp::on_openCalibrationBtn_clicked()
-{
-    QFile file("/home/helxsz/reference_rect.csv");
-    file.open(QIODevice::ReadOnly | QIODevice::Text);
-    QTextStream in(&file);
-
-    while (!in.atEnd())
-    {
-      QString line = in.readLine();
-      cout << "reading line..." << line.toLatin1().data()<<endl;
-      QStringList pieces = line.split( "," );
-      int x,y,width,height;
-      for(int i =0;i<pieces.size();i++){
-          int a = atoi(pieces.at(i).toLocal8Bit().constData());
-          cout << "  values:"<< a<<"   ";
-          switch(i){
-              case 0:
-                  x = a;
-                  break;
-              case 1:
-                  y = a;
-                  break;
-              case 2:
-                  width = a;
-                  break;
-              case 3:
-                  height = a;
-                  break;
-          }
-      }
-      cout <<"    " <<endl;
-    }
-    file.close();
-}
-
-/**************************************************************
- *
- *                Video Player
- *
- **************************************************************/
-
-void ParkingApp::on_videoFrameBtn_clicked()
-{
-    char *num = ui->frameSelectInput->toPlainText().toLocal8Bit().data();
-    int n ;
-
-    std::istringstream in(num);
-    in >> n;
-
-    myPlayer->setCurrentFrame( n );
-}
-
-void ParkingApp::on_videoControlBtn_clicked()
-{
-    if (myPlayer->isStopped())
-    {
-        myPlayer->Play();
-        ui->videoControlBtn->setText(tr("Stop"));
-    }else
-    {
-        myPlayer->Stop();
-        ui->videoControlBtn->setText(tr("Play"));
-    }
-}
-
-void ParkingApp::on_backwardBtn_clicked()
-{
-    int n = myPlayer->getCurrentFrame();
-    n = n-200;
-    if(n<0) n = 0;
-    myPlayer->setCurrentFrame( n );
-}
-
-void ParkingApp::on_forwardBtn_clicked()
-{
-    int n = myPlayer->getCurrentFrame();
-    n = n +200;
-    //if(n > myPlayer->getNumberOfFrames()) n = 0;
-    myPlayer->setCurrentFrame(n);
-}
-
-
-
-
 
 
 /********************
@@ -747,6 +370,489 @@ inline int trackingDemo()
   return 0;
 }
 
+/**********************************
+ *
+ */
+
+inline QImage  cvMatToQImage( const cv::Mat &inMat )
+{
+   switch ( inMat.type() )
+   {
+      // 8-bit, 4 channel
+      case CV_8UC4:
+      {
+         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_RGB32 );
+
+         return image;
+      }
+
+      // 8-bit, 3 channel
+      case CV_8UC3:
+      {
+         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_RGB888 );
+
+         return image.rgbSwapped();
+      }
+
+      // 8-bit, 1 channel
+      case CV_8UC1:
+      {
+         static QVector<QRgb>  sColorTable;
+
+         // only create our color table once
+         if ( sColorTable.isEmpty() )
+         {
+            for ( int i = 0; i < 256; ++i )
+               sColorTable.push_back( qRgb( i, i, i ) );
+         }
+
+         QImage image( inMat.data, inMat.cols, inMat.rows, inMat.step, QImage::Format_Indexed8 );
+
+         image.setColorTable( sColorTable );
+
+         return image;
+      }
+
+      default:{
+         qWarning() << "ASM::cvMatToQImage() - cv::Mat image type not handled in switch:" << inMat.type()<< "    "<<inMat.channels();
+
+         QImage image((const unsigned char*)(inMat.data),inMat.cols,inMat.rows,QImage::Format_Indexed8);
+         return image;
+
+         break;
+      }
+   }
+
+   return QImage();
+}
+
+// http://asmaloney.com/2013/11/code/converting-between-cvmat-and-qimage-or-qpixmap/
+// http://asmaloney.com/2012/06/code/extending-selections-in-qgraphicsview/
+inline cv::Mat QImageToCvMat( const QImage &inImage, bool inCloneImageData = true )
+{
+   switch ( inImage.format() )
+   {
+      // 8-bit, 4 channel
+      case QImage::Format_RGB32:
+      {
+         cv::Mat  mat( inImage.height(), inImage.width(), CV_8UC4, const_cast<uchar*>(inImage.bits()), inImage.bytesPerLine() );
+
+         return (inCloneImageData ? mat.clone() : mat);
+      }
+
+      // 8-bit, 3 channel
+      case QImage::Format_RGB888:
+      {
+         //if ( !inCloneImageData ) qWarning() << "ASM::QImageToCvMat() - Conversion requires cloning since we use a temporary QImage";
+
+         QImage   swapped = inImage.rgbSwapped();
+
+         return cv::Mat( swapped.height(), swapped.width(), CV_8UC3, const_cast<uchar*>(swapped.bits()), swapped.bytesPerLine() ).clone();
+      }
+
+      // 8-bit, 1 channel
+      case QImage::Format_Indexed8:
+      {
+         cv::Mat  mat( inImage.height(), inImage.width(), CV_8UC1, const_cast<uchar*>(inImage.bits()), inImage.bytesPerLine() );
+
+         return (inCloneImageData ? mat.clone() : mat);
+      }
+
+      default:
+       qWarning() << "ASM::QImageToCvMat() - QImage format not handled in switch:" << inImage.format();
+         break;
+   }
+
+   return cv::Mat();
+}
+
+
+void ParkingApp::updatePlayerUI(QImage img,int index){
+
+}
+
+
+
+
+void ParkingApp::detectCar(Mat frame, int index){
+
+    //  garbor filter
+    Mat ori, gray;
+    frame.copyTo(ori);
+    //cv::cvtColor(frame, gray, CV_BGR2GRAY);
+    //edgeDetector->detectCar(frame, index);
+    //hogDetector->detectCar(frame,index);
+    //// simulation
+
+    vector<Point> contours;
+    contours.push_back(Point(310,181));
+    contours.push_back(Point(294,231));  //
+    contours.push_back(Point(259,165));  //
+    contours.push_back(Point(222,211));
+    contours.push_back(Point(203,166));
+    contours.push_back(Point(154,202));
+    contours.push_back(Point(148,154));
+    contours.push_back(Point(101,185));
+
+    contours.push_back(Point(325 ,130));
+    contours.push_back(Point(290 ,128));
+    contours.push_back(Point(253 ,130)); // 10
+    contours.push_back(Point(223 ,122));
+    contours.push_back(Point(187 ,120));
+
+    for (int i = 0; i< contours.size();i++){
+        cv::circle(  frame, contours[i], 15,  Scalar(0,0,255), 2, 8, 0  );
+    }
+
+    cv::circle(  frame, contours[1], 15,  Scalar(0,100,0), 2, 8, 0  );
+
+   if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~001_baofeng.mp4") ==0 ){
+      // 1700
+       if(index > 1700) cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
+   }
+   else if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~002_baofeng.mp4") ==0 ){
+       cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
+       if(index > 827) cv::circle(  frame, contours[2], 15,  Scalar(0,100,0), 2, 8, 0  );
+   }else if(  strcmp (filename.toLatin1().data(), "/home/helxsz/Videos/DVD_VIDEO_RECORDER~003_baofeng.mp4") ==0 ){
+       cv::circle(  frame, contours[10], 15,  Scalar(0,100,0), 2, 8, 0  );
+       cv::circle(  frame, contours[2], 15,  Scalar(0,100,0), 2, 8, 0  );
+       if(index > 211) cv::circle(  frame, contours[0], 15,  Scalar(0,100,0), 2, 8, 0  );
+   }
+
+
+   QImage img = cvMatToQImage(ori);
+   ui->camera->setAlignment(Qt::AlignCenter);
+   ui->camera->setPixmap(QPixmap::fromImage(img).scaled(ui->camera->size(),
+   Qt::KeepAspectRatio, Qt::FastTransformation));
+   //////////////////////////////////////////////////////////
+   QImage img2 = cvMatToQImage(frame);
+   ui->camera2->setAlignment(Qt::AlignCenter);
+   ui->camera2->setPixmap(QPixmap::fromImage(img2).scaled(ui->camera2->size(),
+   Qt::KeepAspectRatio, Qt::FastTransformation));
+   /////////////////////////////////////////////////////////
+   ui->camera3->setAlignment(Qt::AlignCenter);
+   ui->camera3->setPixmap(QPixmap::fromImage(img2).scaled(ui->camera3->size(),
+   Qt::KeepAspectRatio, Qt::FastTransformation));
+
+/*
+   // Prediction part of [P. Dollar and C. L. Zitnick. Structured Forests for Fast Edge Detection, 2013].
+   Mat fastImg;
+   structuredEdgeDetector.detect(ori,fastImg);
+   imshow(fastImg);
+*/
+
+   if(recording){
+       if(recording_type ==0){
+           recording_index ++;
+           char integer_string[8];
+           sprintf(integer_string, "%d", recording_index);
+           char path[64] = "/home/helxsz/Desktop/test/";
+           //strcat(path, recording_folder);
+           strcat(path, "test2");
+           strcat(path,"/");
+           strcat(path, integer_string);
+           strcat(path , ".jpg");
+           cout << path << "    "<<recording_type <<endl;
+           imwrite(path,frame);
+       }else if(recording_type == 1){
+
+           if(outputVideo.isOpened())
+           {
+               cout<< "recording  opening and writing...  "<<recording_type<<endl;
+               imshow("recorindg ",frame);
+               outputVideo.write(frame);
+           }else{
+               cout<<"recording but can not record"<<endl;
+           }
+
+       }
+   }
+}
+
+void ParkingApp::testData2(int t, int k){
+
+    //cout << "test data  "<< t << "   "<< k << "     "<< float( t)/ float(k)  *100  <<endl;
+    //ui->frameLabel->setText( QString("%l / %l").arg( QString::number(t) ).arg( QString::number(k) )  );
+    ui->frameCurrentLabel->setText( QString::number(t) ) ;
+    ui->frameTotalLabel->setText( QString::number(k) ) ;
+
+    ui->progressBar->setValue( float( t)/ float(k)  *100   );
+}
+
+
+
+/***********************************************************
+ *
+ *
+**********************************************************/
+
+void ParkingApp::startVideo(QString tempfile){
+
+    if (!tempfile.isEmpty()){
+        // if it is a folder with images
+        QDir dir(tempfile);
+        if( dir.exists() ){
+           // QStringList files = dir.entryList();
+           // foreach(QFileInfo finfo, files) { qDebug() <<  finfo.absoluteFilePath() << endl; }
+           trackingDemo();
+        }
+        // if it is a video file
+        else{
+           if (!myPlayer->loadVideo(tempfile.toLatin1().data()))
+           {
+               QMessageBox msgBox;
+               msgBox.setText("The selected video address could not be opened!");
+               msgBox.exec();
+           }else{
+               filename = tempfile;
+               myPlayer->Play();
+               ui->openBtn->setText(tr("Stop"));
+           }
+        }
+   }
+}
+
+
+void ParkingApp::on_loadBtn_clicked()
+{
+    QString tempfile = QFileDialog::getOpenFileName(this,tr("Open Video"), ".",tr("Video Files (*.avi *.mpg *.mp4)"));
+    //QString tempfile = QFileDialog::getOpenFileName(this,tr("Open Video"), ".",tr("All Files (*.*)"));
+
+    cout<<"click the button" << "      "<<tempfile.toLatin1().data() <<  endl;
+
+    startVideo(tempfile);
+}
+
+void ParkingApp::on_openBtn_clicked()
+{
+    cout<<ui->ipField->toPlainText().toLocal8Bit().data()  <<endl;
+    QString tempfile = ui->ipField->toPlainText();
+    startVideo(tempfile);
+}
+
+/********************************
+ *
+ *   calibration on the parking spaces
+ *
+********************************/
+inline void on_mouse( int event, int x, int y, int d, void *ptr )
+{
+     Point pos = Point(x,y);
+     Scalar occupied = Scalar(0,0,255);
+     Scalar empty = Scalar(0,100,0);
+
+     Mat* img = (Mat*) ptr;
+     printf("%d %d: %d, %d, %d\n",
+             x, y,
+             (int)(*img).at<Vec3b>(y, x)[0],
+             (int)(*img).at<Vec3b>(y, x)[1],
+             (int)(*img).at<Vec3b>(y, x)[2]);
+
+     if  ( event == EVENT_LBUTTONDOWN )
+     {
+          //cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+          cv::circle(  *img, pos , 15,  occupied, 2, 8, 0  );
+     }
+     else if  ( event == EVENT_RBUTTONDOWN )
+     {
+          //cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+          cv::circle(  *img, pos, 15,  empty, 2, 8, 0  );
+     }
+     else if  ( event == EVENT_MBUTTONDOWN )
+     {
+          //cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+     }
+     else if ( event == EVENT_MOUSEMOVE )
+     {
+          //cout << "Mouse move over the window - position (" << x << ", " << y << ")" << endl;
+     }
+}
+
+// http://answers.opencv.org/question/497/extract-a-rotatedrect-area/
+// http://stackoverflow.com/questions/24073127/opencvs-rotatedrect-angle-does-not-provide-enough-information
+// http://blog.csdn.net/wdy_yx/article/details/8955518
+inline void rotateCrop(Mat src, RotatedRect rect){
+
+    // rect is the RotatedRect (I got it from a contour...)
+    //RotatedRect rotated_rect = minAreaRect(contour);
+    // RotatedRect rRect = RotatedRect(Point2f(100,100), Size2f(100,50), 30);
+
+    // matrices we'll use
+    Mat M, rotated, cropped;
+    // get angle and size from the bounding box
+    float angle = rect.angle;
+    Size rect_size = rect.size;
+    // thanks to http://felix.abecassis.me/2011/10/opencv-rotation-deskewing/
+    if (rect.angle < -45.) {
+        angle += 90.0;
+        swap(rect_size.width, rect_size.height);
+    }
+    // get the rotation matrix
+    M = getRotationMatrix2D(rect.center, angle, 1.0);
+    // perform the affine transformation
+    warpAffine(src, rotated, M, src.size(), INTER_CUBIC);
+    // crop the resulting image
+    getRectSubPix(rotated, rect_size, rect.center, cropped);
+
+}
+
+inline void calibrateParking(String str){
+
+    Mat img = imread(str);
+    if ( img.empty() ){
+       cout << "Error loading the image" << endl;
+    }else{
+        namedWindow( "calibration", WINDOW_AUTOSIZE );
+
+        Rect region_of_interest = Rect(57, 77, 282, 169);
+        Mat ROI = img(region_of_interest);
+        Mat blur;
+        medianBlur ( img, blur, 15 );
+        //bilateralFilter ( img, blur, 35, 80, 80 );
+        //Mat inter = ROI
+        //imshow("blur", blur);
+
+
+        setMouseCallback("calibration",on_mouse, &img );
+        imshow("calibration",img);
+    }
+}
+
+void ParkingApp::on_calibrateBtn_toggled(bool checked)
+{
+    if(checked){
+        calibrateParking("/home/helxsz/Desktop/test/test2/1.jpg");
+
+
+
+    }else{
+        destroyWindow("calibration");
+    }
+
+    /*
+    if (!myPlayer->isStopped()){
+        if(checked){
+             myPlayer->openCalibrate();
+        }else{
+
+             myPlayer->closeCalibrate();
+        }
+    }else{
+        QMessageBox msgBox;
+        msgBox.setText("The video is not playing, try to open a video");
+        msgBox.exec();
+    }
+    */
+
+}
+
+void ParkingApp::on_saveCalibrateBtn_clicked()
+{
+    //myPlayer->saveCalibrate();
+    QFile file("/home/helxsz/reference_rect.csv");
+    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    QTextStream out(&file);
+    /*
+    for(int i=0;i<referenceRect.size();i++){
+        rect = referenceRect[i];
+        out << rect.x <<','<<rect.y<<','<<rect.width<<','<<rect.height<<endl;
+    }
+    */
+    out << 1 <<','<< 1 <<','<< 10 <<','<< 10 <<endl;
+    // optional, as QFile destructor will already do it:
+    file.close();
+
+}
+
+
+void ParkingApp::on_openCalibrationBtn_clicked()
+{
+    QFile file("/home/helxsz/reference_rect.csv");
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+    QTextStream in(&file);
+
+    while (!in.atEnd())
+    {
+      QString line = in.readLine();
+      cout << "reading line..." << line.toLatin1().data()<<endl;
+      QStringList pieces = line.split( "," );
+      int x,y,width,height;
+      for(int i =0;i<pieces.size();i++){
+          int a = atoi(pieces.at(i).toLocal8Bit().constData());
+          cout << "  values:"<< a<<"   ";
+          switch(i){
+              case 0:
+                  x = a;
+                  break;
+              case 1:
+                  y = a;
+                  break;
+              case 2:
+                  width = a;
+                  break;
+              case 3:
+                  height = a;
+                  break;
+          }
+      }
+      cout <<"    " <<endl;
+    }
+    file.close();
+}
+
+/**************************************************************
+ *
+ *                Video Player
+ *
+ **************************************************************/
+
+void ParkingApp::on_videoFrameBtn_clicked()
+{
+    char *num = ui->frameSelectInput->toPlainText().toLocal8Bit().data();
+    int n ;
+
+    std::istringstream in(num);
+    in >> n;
+
+    myPlayer->setCurrentFrame( n );
+}
+
+void ParkingApp::on_videoControlBtn_clicked()
+{
+    if (myPlayer->isStopped())
+    {
+        myPlayer->Play();
+        ui->videoControlBtn->setText(tr("Stop"));
+    }else
+    {
+        myPlayer->Stop();
+        ui->videoControlBtn->setText(tr("Play"));
+    }
+}
+
+void ParkingApp::on_backwardBtn_clicked()
+{
+    int n = myPlayer->getCurrentFrame();
+    n = n-200;
+    if(n<0) n = 0;
+    myPlayer->setCurrentFrame( n );
+}
+
+void ParkingApp::on_forwardBtn_clicked()
+{
+    int n = myPlayer->getCurrentFrame();
+    n = n +200;
+    //if(n > myPlayer->getNumberOfFrames()) n = 0;
+    myPlayer->setCurrentFrame(n);
+}
+
+
+
+
+
+
+
+
 
 void ParkingApp::on_pushButton_clicked()
 {
@@ -850,61 +956,6 @@ void ParkingApp::on_monitorBtn_clicked()
 // http://creative-punch.net/2014/02/opening-displaying-saving-images-qt/
 // http://blog.csdn.net/raodotcong/article/details/8785358  matlab and opencv
 
-void ParkingApp::on_loadParkDataBtn_clicked()
-{
-       QString imagePath = QFileDialog::getOpenFileName(
-                    this,
-                    tr("Open File"),
-                    "",
-                    tr("JPEG (*.jpg *.jpeg);;PNG (*.png)" )
-                    );
-       cout << "output the image path : " <<imagePath.toUtf8().constData() << endl;
-       if(!imagePath.isEmpty()){
-            imageObject = new QImage();
-            imageObject->load(imagePath);
-            if(imageObject->isNull()){
-                QMessageBox::information(this,"Image Viewer","Error Displaying image");
-                return;
-            }
-            image = QPixmap::fromImage(*imageObject);
-            scene = new QGraphicsScene(this);
-            scene->addPixmap(image);
-            scene->setSceneRect(image.rect());
-            ui->graphicsView->setScene(scene);
-
-            //////////////////////////////////////////////////
-            Mat img = imread(imagePath.toUtf8().constData() );
-            cout << img.size()<<endl;
-            hogDetector->detectPerson(img,0);
-       }
-
- /////////////////////////////////////////////////////////
-      process = new QProcess(this);
-      QStringList params;
-      QString scriptFile = QCoreApplication::applicationDirPath() + "../../scriptPath/script.py";
-      scriptFile = "/home/helxsz/helloworld.py";
-      params =  QStringList() << scriptFile << "-f" << "1" << "-t" << "2" ;
-      //printf("pycommand : %s \n", qStringToStdString(params.join(' ')).c_str());
-      process->start("python",params);
-
-      if(!process->waitForStarted()){
-          cout << "process error "<<endl;
-          qDebug() <<"shell error code "<< process->error();
-          exit(1);
-      }
-
-      process->write("print hello \n");
-      process->closeWriteChannel();
-
-      connect(process, SIGNAL(readyRead()),this, SLOT(onProcessReadyRead()));
-
-
-      process->waitForFinished(-1);
-      QString p_stdout = process->readAll();
-      cout << "execut the python script : " << QCoreApplication::applicationDirPath().toUtf8().constData() <<p_stdout.toUtf8().constData() << endl;
-
-
-}
 
 void ParkingApp::onProcessReadyRead(){
    QString p_stdout = process->readAll();
@@ -1003,6 +1054,129 @@ void ParkingApp::onfireDragSignal(){
         }
     }
 
-    /*
-    */
+}
+
+void ParkingApp::on_training_btn_clicked()
+{
+     Mat img = imread("/home/helxsz/Desktop/CarData/TrainImages/neg-0.pgm");
+     imshow("lala ",img);
+
+     hogDetector->start();
+
+     /**/
+     // https://www.youtube.com/watch?v=tP70B-pdTH0   model-less, heap memory
+     // http://247jules.wordpress.com/2010/08/15/how-to-open-a-new-window-in-qt/
+
+     if (webdialog == NULL){
+        cout << "create a new web dialog " <<endl;
+        webdialog = new WebDialog(this);
+        webdialog->show();
+        webdialog->raise();
+        webdialog->activateWindow();
+     }else{
+        cout << "has existing dialog" <<endl;
+     }
+     // If you need to show a modal dialog, use your dialog's exec() method:
+     //webdialog = new WebDialog();
+     //webdialog->exec();
+}
+
+void ParkingApp::on_training_value_changed(int i){
+    qDebug()<<" receive the training value "<<i<<endl;
+
+}
+
+void ParkingApp::on_videoList_doubleClicked(const QModelIndex &index)
+{
+   qDebug() << "click item " << ui->videoList->model()->data(index).toString();
+   QString tempfile  = ui->videoList->model()->data(index).toString();
+   //tempfile = "/home/helxsz/Videos/DVD_VIDEO_RECORDER~001_baofeng.mp4";
+   startVideo(tempfile);
+}
+
+void ParkingApp::on_personDetectBtn_clicked()
+{
+    QString imagePath = QFileDialog::getOpenFileName(
+                 this,
+                 tr("Open File"),
+                 "",
+                 tr("JPEG (*.jpg *.jpeg);;PNG (*.png)" )
+                 );
+    cout << "output the image path : " <<imagePath.toUtf8().constData() << endl;
+    if(!imagePath.isEmpty()){
+         imageObject = new QImage();
+         imageObject->load(imagePath);
+         if(imageObject->isNull()){
+             QMessageBox::information(this,"Image Viewer","Error Displaying image");
+             return;
+         }
+         image = QPixmap::fromImage(*imageObject);
+         scene = new QGraphicsScene(this);
+         scene->addPixmap(image);
+         scene->setSceneRect(image.rect());
+         ui->graphicsView->setScene(scene);
+
+         //////////////////////////////////////////////////
+         Mat img = imread(imagePath.toUtf8().constData() );
+         cout << img.size()<<endl;
+         hogDetector->detectPerson(img,0);
+    }
+
+/////////////////////////////////////////////////////////
+   process = new QProcess(this);
+   QStringList params;
+   QString scriptFile = QCoreApplication::applicationDirPath() + "../../scriptPath/script.py";
+   scriptFile = "/home/helxsz/helloworld.py";
+   params =  QStringList() << scriptFile << "-f" << "1" << "-t" << "2" ;
+   //printf("pycommand : %s \n", qStringToStdString(params.join(' ')).c_str());
+   process->start("python",params);
+
+   if(!process->waitForStarted()){
+       cout << "process error "<<endl;
+       qDebug() <<"shell error code "<< process->error();
+       exit(1);
+   }
+
+   process->write("print hello \n");
+   process->closeWriteChannel();
+
+   connect(process, SIGNAL(readyRead()),this, SLOT(onProcessReadyRead()));
+
+
+   process->waitForFinished(-1);
+   QString p_stdout = process->readAll();
+   cout << "execut the python script : " << QCoreApplication::applicationDirPath().toUtf8().constData() <<p_stdout.toUtf8().constData() << endl;
+
+
+}
+
+
+
+void ParkingApp::on_vehicleDetectBtn_clicked()
+{
+    QString imagePath = QFileDialog::getOpenFileName(
+                 this,
+                 tr("Open File"),
+                 "",
+                 tr("All files (*.*)" )
+                 );
+    cout << "output the image path : " <<imagePath.toUtf8().constData() << endl;
+    if(!imagePath.isEmpty()){
+         imageObject = new QImage();
+         imageObject->load(imagePath);
+         if(imageObject->isNull()){
+             QMessageBox::information(this,"Image Viewer","Error Displaying image");
+             return;
+         }
+         image = QPixmap::fromImage(*imageObject);
+         scene = new QGraphicsScene(this);
+         scene->addPixmap(image);
+         scene->setSceneRect(image.rect());
+         ui->graphicsView->setScene(scene);
+
+         //////////////////////////////////////////////////
+         Mat img = imread(imagePath.toUtf8().constData() );
+         cout << img.size()<<endl;
+         hogDetector->detectCar(img,0);
+    }
 }
